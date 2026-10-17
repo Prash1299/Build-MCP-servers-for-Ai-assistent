@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.eval-header { margin-bottom: 22px; }
+.eval-header h2 { color: #0b3d6e; margin-bottom: 6px; }
+.eval-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 14px; margin: 20px 0; }
+.eval-card { border: 1px solid #d7dbe0; border-radius: 8px; padding: 16px; background: #fff; }
+.eval-card h3 { margin: 0 0 8px; font-size: 14px; color: #555; }
+.eval-number { font-size: 28px; font-weight: bold; color: #0b3d6e; }
+.eval-table { overflow-x: auto; margin: 20px 0; }
+.eval-table table { border-collapse: collapse; width: 100%; }
+.eval-table th, .eval-table td { padding: 9px; border-bottom: 1px solid #ddd; text-align: left; font-size: 13px; }
+.eval-table th { background: #eef3f8; }
+.status { font-weight: bold; }
+.status-PENDING { color: #946200; }
+.status-APPROVED, .status-DEEMED_APPROVED { color: #16703c; }
+.status-REJECTED, .status-WITHDRAWN { color: #a33; }
+.eval-note { color: #555; font-size: 13px; line-height: 1.5; }
+
+.transcript-run { border: 1px solid #d7dbe0; border-radius: 10px; margin: 18px 0; overflow: hidden; background: #fff; }
+.transcript-run-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; background: #eef3f8; border-bottom: 1px solid #d7dbe0; }
+.transcript-run-header strong { color: #0b3d6e; }
+.transcript-thread { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.transcript-message { max-width: 86%; border-radius: 12px; padding: 11px 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.transcript-message-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 5px; opacity: .8; }
+.transcript-user { align-self: flex-end; background: #e5f1ff; border: 1px solid #c5ddfa; color: #173b61; }
+.transcript-assistant { align-self: flex-start; background: #f4f6f8; border: 1px solid #dfe3e8; color: #20252b; }
+.transcript-tool { align-self: stretch; border: 1px solid #d9e3ed; border-left: 4px solid #477da8; border-radius: 8px; padding: 11px 13px; background: #fbfcfe; }
+.transcript-tool-result { border-left-color: #39835b; }
+.transcript-error { border-left-color: #b84b4b; background: #fffafa; }
+.transcript-content { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; font-size: 13px; }
+.transcript-empty { padding: 16px; color: #666; font-size: 13px; }
+@media (max-width: 600px) { .transcript-message { max-width: 100%; } }
+
+</style>
+
+<div class="eval-header">
+  <h2>Evaluation Dashboard</h2>
+  <p class="eval-note">
+    Seva Setu citizen and officer workflows. Application counts and recent activity
+    below are read directly from the portal database.
+  </p>
+</div>
+
+<div class="eval-grid">
+  <div class="eval-card">
+    <h3>Total applications</h3>
+    <div class="eval-number">{{ status_counts | sum(attribute=1) }}</div>
+  </div>
+  {% for status, count in status_counts %}
+  <div class="eval-card">
+    <h3>{{ status }} applications</h3>
+    <div class="eval-number">{{ count }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<h3>Recent portal activity</h3>
+<p class="eval-note">
+  These are real application records, not persona evaluation results.
+  A database record alone does not mean a persona test passed.
+</p>
+
+<div class="eval-table">
+  <table>
+    <thead>
+      <tr>
+        <th>Application ID</th>
+        <th>Application number</th>
+        <th>Applicant</th>
+        <th>Block</th>
+        <th>Status</th>
+        <th>Decided by</th>
+        <th>Latest audit action</th>
+        <th>Audit actor</th>
+        <th>Audit time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in recent_activity %}
+      <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] or "—" }}</td>
+        <td>{{ row[2] or "—" }}</td>
+        <td>{{ row[3] or "—" }}</td>
+        <td class="status status-{{ row[4] }}">{{ row[4] }}</td>
+        <td>{{ row[5] or "—" }}</td>
+        <td>{{ row[7] or "—" }}</td>
+        <td>{{ row[8] or "—" }}</td>
+        <td>{{ row[9] or "—" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">No application records found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<h3>Persona evaluation results</h3>
+<p class="eval-note">
+  Results below are recorded evaluation runs. Pass rates are calculated from
+  persisted outcomes, and individual checks compare expected and actual values.
+</p>
+
+<div class="eval-grid">
+  <div class="eval-card">
+    <h3>Total evaluation runs</h3>
+    <div class="eval-number">{{ eval_summary.total_runs }}</div>
+  </div>
+  <div class="eval-card">
+    <h3>Passed runs</h3>
+    <div class="eval-number">{{ eval_summary.passed_runs }}</div>
+  </div>
+  <div class="eval-card">
+    <h3>Pass rate</h3>
+    <div class="eval-number">{{ eval_summary.pass_rate }}%</div>
+  </div>
+</div>
+
+<div class="eval-table">
+  <table>
+    <thead>
+      <tr>
+        <th>Run</th>
+        <th>Persona</th>
+        <th>Scenario</th>
+        <th>Outcome</th>
+        <th>Checks passed</th>
+        <th>Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in eval_runs %}
+      <tr>
+        <td>{{ run[0] }}</td>
+        <td>{{ run[1] }}</td>
+        <td>{{ run[2] }}</td>
+        <td class="status">{{ run[3] }}</td>
+        <td>{{ run[4] }}/{{ run[5] }}</td>
+        <td>{{ run[6] or "—" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">No evaluation runs recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h3>Individual evaluation checks</h3>
+<div class="eval-table">
+  <table>
+    <thead>
+      <tr>
+        <th>Run</th>
+        <th>Check</th>
+        <th>Result</th>
+        <th>Expected</th>
+        <th>Actual</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for check in eval_check_rows %}
+      <tr>
+        <td>{{ check[0] }}</td>
+        <td>{{ check[1] }}</td>
+        <td class="status">{{ "PASS" if check[2] else "FAIL" }}</td>
+        <td>{{ check[3] }}</td>
+        <td>{{ check[4] or "—" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No evaluation checks recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h3>Conversation transcript</h3>
+<p class="eval-note">
+  Read each recorded evaluation as a conversation. Citizen messages and assistant replies
+  appear as chat bubbles; MCP calls, results, and errors are shown as technical events.
+  The event log below remains available for detailed debugging.
+</p>
+
+{% for run in eval_runs %}
+  {% set run_events = transcript_events | selectattr("run_id", "equalto", run[0]) | list %}
+  {% if run_events %}
+  <section class="transcript-run" aria-label="Conversation for evaluation run {{ run[0] }}">
+    <div class="transcript-run-header">
+      <strong>Run {{ run[0] }}</strong>
+      <span>{{ run[1] }}</span>
+      <span>· {{ run[2] }}</span>
+      <span class="status">{{ run[3] }}</span>
+    </div>
+    <div class="transcript-thread">
+      {% for event in run_events %}
+        {% if event.event_type == "USER_MESSAGE" %}
+          <div class="transcript-message transcript-user">
+            <div class="transcript-message-label">Citizen</div>
+            <div class="transcript-content">{{ event.display_content }}</div>
+          </div>
+        {% elif event.event_type in ["ASSISTANT_FINAL", "ASSISTANT_MESSAGE"] %}
+          <div class="transcript-message transcript-assistant">
+            <div class="transcript-message-label">{{ "Assistant reply" if event.event_type == "ASSISTANT_FINAL" else "Assistant" }}</div>
+            {% if event.event_type == "ASSISTANT_MESSAGE" and not event.display_content %}
+              <div class="transcript-content">The assistant requested a tool call.</div>
+            {% else %}
+              <div class="transcript-content">{{ event.display_content }}</div>
+            {% endif %}
+          </div>
+        {% elif event.event_type == "MCP_TOOL_CALL" %}
+          <div class="transcript-tool">
+            <div class="transcript-message-label">MCP tool call</div>
+            <div><strong>{{ event.tool_name or "Tool" }}</strong></div>
+            {% if event.display_content %}<pre class="transcript-content">{{ event.display_content }}</pre>{% endif %}
+          </div>
+        {% elif event.event_type == "MCP_TOOL_RESULT" %}
+          <div class="transcript-tool transcript-tool-result">
+            <div class="transcript-message-label">MCP tool result</div>
+            {% if event.tool_name %}<div><strong>{{ event.tool_name }}</strong></div>{% endif %}
+            <pre class="transcript-content">{{ event.display_content }}</pre>
+          </div>
+        {% elif "ERROR" in event.event_type %}
+          <div class="transcript-tool transcript-error">
+            <div class="transcript-message-label">{{ event.event_type.replace("_", " ") }}</div>
+            <pre class="transcript-content">{{ event.display_content }}</pre>
+          </div>
+        {% else %}
+          <div class="transcript-tool">
+            <div class="transcript-message-label">{{ event.event_type.replace("_", " ") }}</div>
+            <pre class="transcript-content">{{ event.display_content }}</pre>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+{% else %}
+  <p class="eval-note">No conversation transcripts recorded yet.</p>
+{% endfor %}
+
+<h3>Evaluation event log</h3>
+<p class="eval-note">
+  Events recorded during each evaluation. MCP tool results are shown as
+  tool results; a full assistant transcript appears only when one is recorded.
+</p>
+
+<div class="eval-table">
+  <table>
+    <thead>
+      <tr>
+        <th>Run</th>
+        <th>Event type</th>
+        <th>Event details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in eval_event_rows %}
+      <tr>
+        <td>{{ event[0] }}</td>
+        <td>{{ event[1] }}</td>
+        <td>
+          <pre style="white-space: pre-wrap; overflow-wrap: anywhere; margin: 0;">{{ event[2] }}</pre>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="3">No evaluation events recorded yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

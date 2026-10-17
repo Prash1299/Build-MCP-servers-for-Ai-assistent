@@ -1,0 +1,80 @@
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: sewasetu
+      POSTGRES_USER: sewasetu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./app/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./seed/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+
+  app:
+    build: ./app
+    ports:
+      - "8000:8000"
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-before-deploying}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_BASE_URL: ${GROQ_BASE_URL}
+      GROQ_MODEL: ${GROQ_MODEL}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
+    depends_on:
+      - db
+      - smsgw
+    volumes:
+      - uploads:/var/sewasetu/uploads
+      - applogs:/var/log/sewasetu
+
+  citizen-mcp:
+    build: ./app
+    command: ["python", "-m", "mcp_servers.citizen_server"]
+    ports:
+      - "127.0.0.1:8101:8101"
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      PORTAL_URL: http://app:8000
+      CITIZEN_MCP_AUDIENCE: http://localhost:8101
+    depends_on:
+      - app
+    volumes:
+      - uploads:/var/sewasetu/uploads
+
+
+  officer-mcp:
+    build: ./app
+    command: ["python", "-m", "mcp_servers.officer_server"]
+    ports:
+      - "127.0.0.1:8102:8102"
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      PORTAL_URL: http://app:8000
+      OFFICER_MCP_AUDIENCE: http://localhost:8102
+    depends_on:
+      - app
+
+
+  scheduler:
+    build: ./app
+    command: ["sh", "-c", "until python /app/scripts/deemed_approval.py; do sleep 5; done; exec cron -f"]
+    depends_on:
+      - db
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - applogs:/var/log/sewasetu
+
+  smsgw:
+    build: ./smsgw
+    expose:
+      - "8025"
+
+volumes:
+  pgdata:
+  uploads:
+  applogs:

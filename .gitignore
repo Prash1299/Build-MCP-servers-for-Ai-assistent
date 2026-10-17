@@ -1,0 +1,27 @@
+
+# Secrets
+.env
+.env.*
+!.env.example
+*_token.txt
+*_refresh_token.txt
+*_pkce.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local databases, logs and backups
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.jsonl
+*.bak
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
