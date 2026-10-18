@@ -252,6 +252,7 @@ if __name__ == "__main__":
             "127.0.0.1:8102",
             "officer-mcp:8102",
             "host.docker.internal:8102",
+            "gallant-reverence-production-ed24.up.railway.app"
         ],
     )
     
