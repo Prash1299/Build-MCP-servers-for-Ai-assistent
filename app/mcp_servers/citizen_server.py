@@ -319,6 +319,7 @@ if __name__ == "__main__":
             "127.0.0.1:8101",
             "citizen-mcp:8101",
             "host.docker.internal:8101",
+            "perpetual-liberation-production-16d0.up.railway.app",
         ],
     )
     
