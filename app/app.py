@@ -68,6 +68,7 @@ except Exception:
     pass
 
 
+
 def get_db():
     return psycopg2.connect(
         host=os.environ.get("POSTGRES_HOST") or config.get("database", "host"),
@@ -76,6 +77,7 @@ def get_db():
         user=os.environ.get("POSTGRES_USER") or config.get("database", "user"),
         password=os.environ.get("POSTGRES_PASSWORD") or config.get("database", "password"),
     )
+
 
 
 def sanitize(value, maxlen=100):
@@ -718,7 +720,6 @@ def eval_dashboard():
                        0
                    )
             FROM eval_runs
-            WHERE outcome IN ('PASS', 'FAIL')
             """
         )
         total_runs, passed_runs, pass_rate = cur.fetchone()
